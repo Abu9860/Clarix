@@ -4,6 +4,7 @@ import Books from "./components/Books";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import "./App.css";
+import HomePage from "./pages/HomePage";
 
 // Uncomment as you build each page:
 // import LandingPage from "./pages/LandingPage";
@@ -34,10 +35,10 @@ export default function App() {
     <ThemeProvider>
       <Router>
         <Routes>
+          <Route path="/" element={<HomePage />} />
           {/* <Route path="/"       element={<LandingPage />} /> */}
           {/* <Route path="/login"  element={<LoginPage />}  /> */}
           {/* <Route path="/signup" element={<SignupPage />} /> */}
-          {/* <Route path="/home"   element={<HomePage />}  /> */}
         </Routes>
 
         <div>
