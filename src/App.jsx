@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { databases, DATABASE_ID, COLLECTION_ID_books } from "./lib/appwrite";
-import Books from "./components/Books";
+
 function App() {
   const [, setDocs] = useState([]);
 
@@ -22,7 +22,7 @@ function App() {
 
   return (
     <div>
-      <Books />
+      <video />
     </div>
   );
 }
