@@ -1,43 +1,50 @@
 import { useEffect, useState } from "react";
-import { databases, DATABASE_ID, COLLECTION_ID } from "../lib/appwrite";
+import { databases, DATABASE_ID, COLLECTION_ID_books } from "../lib/appwrite";
 
 export default function Books() {
   const [books, setBooks] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
-    let isMounted = true;
-
     const fetchBooks = async () => {
-      try {
-        const res = await databases.listDocuments(
-          DATABASE_ID,
-          COLLECTION_ID
-        );
-
-        if (isMounted) {
-          setBooks(res.documents);
-          setLoading(false);
-        }
-      } catch (error) {
-        console.error("Error fetching books:", error);
-      }
+      const res = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTION_ID_books
+      );
+      setBooks(res.documents);
     };
 
     fetchBooks();
-
-    return () => {
-      isMounted = false;
-    };
   }, []);
 
-  if (loading) return <p>Loading books...</p>;
-
   return (
-    <div>
+    <div style={{ padding: "20px" }}>
       {books.map((book) => (
         <div key={book.$id}>
-          <h3>{book.title}</h3>
+          <h2>{book.title}</h2>
+          <div style={{ border: "1px solid #ccc", height: "360px", overflow: "hidden" }}>
+  <embed
+    key={page} // force reload
+    src={`${book.coverImageUrl}#page=${page}&view=FitH&toolbar=0&navpanes=0&scrollbar=0`}
+    type="application/pdf"
+    height="100%"
+    width="100%"
+    style={{ border: "none" }}
+  />
+</div>
+         
+
+          <div style={{ marginTop: 10 }}>
+            <button onClick={() => setPage((p) => Math.max(p - 1, 1))}>
+              Prev
+            </button>
+
+            <button onClick={() => setPage((p) => p + 1)}>
+              Next
+            </button>
+
+            <span style={{ marginLeft: 10 }}>Page {page}</span>
+          </div>
         </div>
       ))}
     </div>
