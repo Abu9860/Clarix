@@ -1,4 +1,4 @@
-:root {
+/* :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
@@ -65,4 +65,481 @@ button:focus-visible {
   button {
     background-color: #f9f9f9;
   }
+} */
+
+/* ═══════════════════════════════════════════════════════
+   CLARIX — Main Stylesheet
+   All styles live here. One file. Clean and simple.
+═══════════════════════════════════════════════════════ */
+
+/* ─── GOOGLE FONTS ─────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=Sora:wght@600;700&family=JetBrains+Mono:wght@400;600&display=swap');
+
+/* ─── TAILWIND DIRECTIVES ──────────────────────────── */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+/* ═══════════════════════════════════════════════════════
+   1. BASE — Global resets and defaults
+═══════════════════════════════════════════════════════ */
+@layer base {
+
+  * {
+    transition: background-color 250ms ease, color 250ms ease, border-color 250ms ease;
+  }
+
+  html {
+    @apply bg-light-bg text-light-text dark:bg-dark-bg dark:text-dark-text;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: 'Sora', sans-serif;
+    @apply font-bold tracking-tight;
+  }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar       { width: 4px; }
+  ::-webkit-scrollbar-track { @apply bg-transparent; }
+  ::-webkit-scrollbar-thumb { @apply bg-brand-300 dark:bg-brand-700 rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-brand-500; }
+
+  /* ── CSS Variables: Light Mode ── */
+  :root {
+    --color-bg:          #F7F7F5;
+    --color-surface:     #FFFFFF;
+    --color-border:      #E8E5F0;
+    --color-text:        #1F1235;
+    --color-subtext:     #6B7280;
+    --color-muted:       #9CA3AF;
+    --color-brand:       #8B5CF6;
+    --color-brand-hover: #7C3AED;
+  }
+
+  /* ── CSS Variables: Dark Mode ── */
+  .dark {
+    --color-bg:          #1A1625;
+    --color-surface:     #1E1A2D;
+    --color-border:      #2E2840;
+    --color-text:        #F0EEF8;
+    --color-subtext:     #C4C0D4;
+    --color-muted:       #6B6880;
+    --color-brand:       #A78BFA;
+    --color-brand-hover: #8B5CF6;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   2. COMPONENTS — Reusable UI classes
+═══════════════════════════════════════════════════════ */
+@layer components {
+
+  /* ──────────────────────────────────────────────────
+     NAVBAR & FOOTER
+  ────────────────────────────────────────────────── */
+  .clarix-navbar {
+    @apply
+      fixed top-0 left-0 right-0 z-50
+      h-[56px] px-6
+      flex items-center justify-between
+      bg-light-surface dark:bg-dark-surface
+      border-b border-light-border dark:border-dark-border;
+  }
+
+  .clarix-logo {
+    @apply font-display font-bold text-lg
+      text-light-text dark:text-dark-text tracking-tight;
+  }
+
+  .clarix-nav-link {
+    @apply
+      px-3 py-1.5 rounded-lg text-sm font-medium
+      text-light-subtext dark:text-dark-subtext
+      hover:text-brand-600 dark:hover:text-brand-400
+      hover:bg-light-border dark:hover:bg-dark-border
+      transition-all duration-250 relative;
+  }
+
+  .clarix-nav-link.active {
+    @apply text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/30;
+  }
+
+  .clarix-nav-link.active::after {
+    content: '';
+    @apply absolute -bottom-[13px] left-0 right-0 h-[2px] rounded-full bg-brand-500;
+  }
+
+  .theme-toggle {
+    @apply p-2 rounded-lg
+      text-light-subtext dark:text-dark-subtext
+      hover:bg-light-border dark:hover:bg-dark-border
+      hover:text-brand-500 transition-all duration-250;
+  }
+
+  .clarix-footer {
+    @apply
+      h-[40px] px-6
+      flex items-center justify-between
+      bg-light-surface dark:bg-dark-surface
+      border-t border-light-border dark:border-dark-border
+      text-2xs text-light-muted dark:text-dark-muted;
+  }
+
+
+  /* ──────────────────────────────────────────────────
+     PANEL LAYOUT
+  ────────────────────────────────────────────────── */
+  .panel-layout {
+    @apply flex h-[calc(100vh-56px-40px)] mt-[56px] overflow-hidden;
+  }
+
+  .clarix-panel {
+    @apply h-full overflow-y-auto transition-all duration-250;
+  }
+
+  .clarix-index-panel {
+    @apply clarix-panel
+      bg-light-panel1 dark:bg-dark-panel1
+      border-r border-light-border dark:border-dark-border
+      flex-shrink-0;
+  }
+
+  .clarix-book-panel {
+    @apply clarix-panel bg-light-panel2 dark:bg-dark-panel2 flex-1;
+  }
+
+  .clarix-chat-panel {
+    @apply clarix-panel
+      bg-light-panel3 dark:bg-dark-panel3
+      border-l border-light-border dark:border-dark-border
+      flex-shrink-0 flex flex-col;
+  }
+
+  .clarix-drag-handle {
+    @apply
+      w-[4px] h-full cursor-col-resize flex-shrink-0
+      bg-light-border dark:bg-dark-border
+      hover:bg-brand-400 dark:hover:bg-brand-600
+      transition-colors duration-250;
+  }
+
+  .panel-inner  { @apply p-4 flex flex-col gap-3; }
+
+  .panel-header {
+    @apply flex items-center justify-between pb-3
+      border-b border-light-border dark:border-dark-border;
+  }
+
+
+  /* ──────────────────────────────────────────────────
+     BUTTONS
+  ────────────────────────────────────────────────── */
+  .btn-primary {
+    @apply
+      inline-flex items-center justify-center gap-2
+      px-4 py-2 rounded-xl
+      bg-brand-600 hover:bg-brand-700
+      text-white text-sm font-medium
+      transition-all duration-250
+      shadow-glow-sm hover:shadow-glow-md
+      disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-ghost {
+    @apply
+      inline-flex items-center justify-center gap-2
+      px-4 py-2 rounded-xl bg-transparent
+      border border-light-border dark:border-dark-border
+      text-light-subtext dark:text-dark-subtext
+      hover:border-brand-400 hover:text-brand-500
+      text-sm font-medium transition-all duration-250;
+  }
+
+  .btn-icon {
+    @apply p-2 rounded-lg
+      text-light-subtext dark:text-dark-subtext
+      hover:bg-light-border dark:hover:bg-dark-border
+      hover:text-brand-500 transition-all duration-250;
+  }
+
+  .btn-icon-sm {
+    @apply p-1.5 rounded-lg
+      text-light-muted dark:text-dark-muted
+      hover:bg-light-border dark:hover:bg-dark-border
+      hover:text-brand-500 transition-all duration-250;
+  }
+
+
+  /* ──────────────────────────────────────────────────
+     INDEX PANEL — Chapter Accordion
+  ────────────────────────────────────────────────── */
+  .chapter-item {
+    @apply
+      w-full text-left px-3 py-2 rounded-lg
+      text-sm font-medium
+      text-light-subtext dark:text-dark-subtext
+      hover:bg-light-border dark:hover:bg-dark-border
+      hover:text-brand-600 dark:hover:text-brand-400
+      transition-all duration-250
+      flex items-center justify-between;
+  }
+
+  .chapter-item.active {
+    @apply bg-brand-100 dark:bg-brand-900/40
+      text-brand-700 dark:text-brand-300;
+  }
+
+  .chapter-sub-item {
+    @apply flex items-center gap-2
+      pl-7 pr-3 py-1.5 rounded-lg
+      text-xs font-medium
+      text-light-muted dark:text-dark-muted
+      hover:text-brand-500 transition-colors duration-250;
+  }
+
+  .chapter-sub-item.active { @apply bg-brand-500 text-white; }
+
+  .progress-track {
+    @apply h-1.5 rounded-full bg-light-border dark:bg-dark-border overflow-hidden;
+  }
+
+  .progress-fill {
+    @apply h-full rounded-full
+      bg-gradient-to-r from-brand-500 to-brand-400
+      transition-all duration-500;
+  }
+
+
+  /* ──────────────────────────────────────────────────
+     BOOK PANEL — Content Styles
+  ────────────────────────────────────────────────── */
+  .vocab-callout {
+    @apply p-4 rounded-xl border-l-4 border-brand-500
+      bg-brand-50 dark:bg-brand-900/20;
+  }
+
+  .breadcrumb-item {
+    @apply text-xs text-light-muted dark:text-dark-muted
+      hover:text-brand-500 transition-colors;
+  }
+
+  .breadcrumb-separator { @apply text-xs text-light-muted dark:text-dark-muted; }
+
+  .breadcrumb-active {
+    @apply text-xs font-medium text-light-text dark:text-dark-text;
+  }
+
+
+  /* ──────────────────────────────────────────────────
+     CHAT PANEL
+  ────────────────────────────────────────────────── */
+  .chat-scroll-area {
+    @apply flex-1 overflow-y-auto flex flex-col gap-3 px-3 py-4;
+  }
+
+  .chat-row-ai   { @apply flex items-start gap-2; }
+  .chat-row-user { @apply flex items-start justify-end gap-2; }
+
+  .chat-avatar {
+    @apply w-7 h-7 rounded-full flex-shrink-0
+      bg-brand-100 dark:bg-brand-900
+      flex items-center justify-center text-xs;
+  }
+
+  .chat-bubble-ai {
+    @apply max-w-[85%] px-3 py-2.5 rounded-2xl rounded-tl-sm
+      bg-light-border dark:bg-dark-border
+      text-sm text-light-text dark:text-dark-text leading-relaxed;
+  }
+
+  .chat-bubble-user {
+    @apply max-w-[85%] px-3 py-2.5 rounded-2xl rounded-tr-sm
+      bg-brand-600 text-sm text-white leading-relaxed;
+  }
+
+  .chat-typing {
+    @apply flex items-center gap-1 px-3 py-2
+      rounded-2xl rounded-tl-sm
+      bg-light-border dark:bg-dark-border w-fit;
+  }
+
+  .chat-typing-dot {
+    @apply w-1.5 h-1.5 rounded-full bg-brand-400 animate-bounce;
+  }
+
+  .chat-chips { @apply flex gap-2 flex-wrap mt-1; }
+
+  .chat-chip {
+    @apply px-3 py-1 rounded-full
+      border border-brand-300 dark:border-brand-700
+      text-xs font-medium
+      text-brand-600 dark:text-brand-400
+      hover:bg-brand-100 dark:hover:bg-brand-900
+      transition-all duration-250 cursor-pointer;
+  }
+
+  .chat-input-area {
+    @apply p-3 mt-auto border-t border-light-border dark:border-dark-border;
+  }
+
+  .chat-input-row { @apply flex items-end gap-2; }
+
+  .clarix-chat-input {
+    @apply flex-1 px-3 py-2.5 rounded-xl
+      bg-light-border dark:bg-dark-border
+      border border-transparent
+      focus:border-brand-400 focus:outline-none
+      text-sm text-light-text dark:text-dark-text
+      placeholder:text-light-muted dark:placeholder:text-dark-muted
+      resize-none transition-all duration-250 max-h-[120px];
+  }
+
+  .chat-send-btn {
+    @apply w-9 h-9 rounded-xl flex-shrink-0
+      bg-brand-600 hover:bg-brand-700 text-white
+      flex items-center justify-center
+      transition-all duration-250
+      shadow-glow-sm hover:shadow-glow-md;
+  }
+
+  .chat-disclaimer {
+    @apply text-2xs text-center text-light-muted dark:text-dark-muted mt-1.5;
+  }
+
+
+  /* ──────────────────────────────────────────────────
+     MCQ BLOCK
+  ────────────────────────────────────────────────── */
+  .mcq-block {
+    @apply w-full p-3 rounded-xl
+      border border-light-border dark:border-dark-border
+      flex flex-col gap-2;
+  }
+
+  .mcq-question {
+    @apply text-sm font-medium text-light-text dark:text-dark-text mb-1;
+  }
+
+  .mcq-option {
+    @apply w-full flex items-center gap-3 px-3 py-2.5 rounded-xl
+      border border-light-border dark:border-dark-border
+      text-sm text-light-text dark:text-dark-text
+      hover:border-brand-400 dark:hover:border-brand-500
+      hover:bg-brand-50 dark:hover:bg-brand-900/30
+      transition-all duration-250 cursor-pointer text-left;
+  }
+
+  .mcq-option.correct {
+    @apply border-green-400 bg-green-50 dark:bg-green-900/20
+      text-green-700 dark:text-green-400;
+  }
+
+  .mcq-option.wrong {
+    @apply border-red-400 bg-red-50 dark:bg-red-900/20
+      text-red-600 dark:text-red-400;
+  }
+
+
+  /* ──────────────────────────────────────────────────
+     FLASHCARD
+  ────────────────────────────────────────────────── */
+  .flashcard {
+    @apply w-full p-4 rounded-2xl text-center cursor-pointer
+      border border-light-border dark:border-dark-border
+      bg-light-surface dark:bg-dark-surface
+      hover:border-brand-400 hover:shadow-glow-sm
+      transition-all duration-250;
+  }
+
+  .flashcard-label {
+    @apply text-2xs font-bold tracking-widest uppercase
+      text-brand-500 mb-2 font-mono;
+  }
+
+  .flashcard-flip-btn {
+    @apply mt-3 text-xs text-brand-500 hover:text-brand-700
+      font-medium transition-colors;
+  }
+
+
+  /* ──────────────────────────────────────────────────
+     TYPOGRAPHY & MISC
+  ────────────────────────────────────────────────── */
+  .section-label {
+    @apply text-2xs font-bold tracking-[2px] uppercase
+      text-light-muted dark:text-dark-muted font-mono;
+  }
+
+  .clarix-badge {
+    @apply px-2 py-0.5 rounded-full text-2xs font-semibold font-mono
+      bg-brand-100 dark:bg-brand-900/50
+      text-brand-700 dark:text-brand-300;
+  }
+
+  .clarix-search {
+    @apply w-full px-3 py-1.5 rounded-lg
+      bg-light-border dark:bg-dark-border
+      border border-transparent
+      focus:border-brand-400 focus:outline-none
+      text-sm text-light-text dark:text-dark-text
+      placeholder:text-light-muted dark:placeholder:text-dark-muted
+      transition-all duration-250;
+  }
+
+  .page-title {
+    @apply font-display font-bold text-2xl tracking-tight
+      text-light-text dark:text-dark-text;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   3. UTILITIES — Helpers and animations
+═══════════════════════════════════════════════════════ */
+@layer utilities {
+
+  .text-gradient {
+    @apply bg-gradient-to-r from-brand-500 to-brand-700
+      bg-clip-text text-transparent;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+
+  .glow-border { @apply border border-brand-400 shadow-glow-sm; }
+
+  /* ── Typing dots stagger ── */
+  .chat-typing-dot:nth-child(1) { animation-delay: 0ms;   }
+  .chat-typing-dot:nth-child(2) { animation-delay: 150ms; }
+  .chat-typing-dot:nth-child(3) { animation-delay: 300ms; }
+
+  /* ── Fade in up ── */
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0);   }
+  }
+  .animate-fade-in-up { animation: fadeInUp 200ms ease forwards; }
+
+  /* ── Handwriting draw ── */
+  @keyframes draw {
+    from { stroke-dashoffset: 1000; }
+    to   { stroke-dashoffset: 0;    }
+  }
+  .animate-draw {
+    stroke-dasharray: 1000;
+    animation: draw 2s ease forwards;
+  }
+
+  /* ── AI avatar glow pulse ── */
+  @keyframes glowPulse {
+    0%, 100% { box-shadow: 0 0 8px rgba(139, 92, 246, 0.3);  }
+    50%       { box-shadow: 0 0 16px rgba(139, 92, 246, 0.6); }
+  }
+  .animate-glow-pulse { animation: glowPulse 2s ease infinite; }
 }
