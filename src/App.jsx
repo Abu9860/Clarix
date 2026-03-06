@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { databases, DATABASE_ID, COLLECTION_ID } from "./lib/appwrite";
+import { databases, DATABASE_ID, COLLECTION_ID_books } from "./lib/appwrite";
 import Books from "./components/Books";
 function App() {
   const [, setDocs] = useState([]);
@@ -9,7 +9,7 @@ function App() {
       try {
         const res = await databases.listDocuments(
           DATABASE_ID,
-          COLLECTION_ID
+          COLLECTION_ID_books
         );
         setDocs(res.documents);
       } catch (error) {
