@@ -38,13 +38,13 @@ const ScrollIcon = () => (
     </svg>
 );
 
-export default function BookPanel({ style }) {
+// page and setPage are lifted to HomePage so IndexPanel can also control the page
+export default function BookPanel({ style, page, setPage }) {
 
     const [books, setBooks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [selectedBook, setSelectedBook] = useState(null);
-    const [page, setPage] = useState(1);
     const [pdfLoading, setPdfLoading] = useState(false);
     const [viewMode, setViewMode] = useState("page");
     const [windowWidth, setWindowWidth] = useState(window.innerWidth);
