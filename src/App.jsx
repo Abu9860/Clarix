@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { databases, DATABASE_ID, COLLECTION_ID } from "./lib/appwrite";
-import Books from "./components/Books";
+import { databases, DATABASE_ID, COLLECTION_ID_books } from "./lib/appwrite";
+
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import "./App.css";
+import HomePage from "./pages/HomePage";
 
 // Uncomment as you build each page:
 // import LandingPage from "./pages/LandingPage";
@@ -19,7 +20,7 @@ export default function App() {
       try {
         const res = await databases.listDocuments(
           DATABASE_ID,
-          COLLECTION_ID
+          COLLECTION_ID_books
         );
         setDocs(res.documents);
       } catch (error) {
@@ -34,15 +35,15 @@ export default function App() {
     <ThemeProvider>
       <Router>
         <Routes>
+          <Route path="/" element={<HomePage />} />
           {/* <Route path="/"       element={<LandingPage />} /> */}
           {/* <Route path="/login"  element={<LoginPage />}  /> */}
           {/* <Route path="/signup" element={<SignupPage />} /> */}
-          {/* <Route path="/home"   element={<HomePage />}  /> */}
         </Routes>
 
-        <div>
+        {/* <div>
           <Books />
-        </div>
+        </div> */}
       </Router>
     </ThemeProvider>
   );
