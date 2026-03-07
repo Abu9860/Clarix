@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 
 // ── Appwrite Config ────────────────────────────────────
 const APPWRITE_ENDPOINT = import.meta.env.VITE_APPWRITE_ENDPOINT || "";
@@ -105,6 +105,631 @@ const StopCircleIcon = () => (
         <rect x="9" y="9" width="6" height="6" />
     </svg>
 );
+
+const SlidesIcon = () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+        <rect x="2" y="3" width="20" height="14" rx="2" />
+        <path d="M8 21h8" />
+        <path d="M12 17v4" />
+    </svg>
+);
+
+const VideoIcon = () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+        <polygon points="23 7 16 12 23 17 23 7" />
+        <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+    </svg>
+);
+
+const ChevronLeftIcon = () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <polyline points="15 18 9 12 15 6" />
+    </svg>
+);
+
+const ChevronRightIcon = () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <polyline points="9 18 15 12 9 6" />
+    </svg>
+);
+
+const DownloadIcon = () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <polyline points="7 10 12 15 17 10" />
+        <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+);
+
+// ── Slide content extractor ────────────────────────────
+// Splits an AI response into up to 4 slide topics
+function extractSlides(responseText) {
+    // Try to find bullet / numbered list items first
+    const bulletRegex = /^[\s]*[-•*]\s+(.+)$/gm;
+    const numberedRegex = /^[\s]*\d+[.)]\s+(.+)$/gm;
+
+    let items = [];
+    let match;
+
+    while ((match = bulletRegex.exec(responseText)) !== null) {
+        items.push(match[1].trim());
+    }
+    if (items.length < 2) {
+        items = [];
+        while ((match = numberedRegex.exec(responseText)) !== null) {
+            items.push(match[1].trim());
+        }
+    }
+
+    // If we found list items, use up to 4
+    if (items.length >= 2) {
+        return items.slice(0, 4).map((text, i) => ({
+            number: i + 1,
+            title: text.length > 60 ? text.slice(0, 57) + "…" : text,
+            body: text,
+        }));
+    }
+
+    // Fallback: split by sentences, group into 3-4 chunks
+    const sentences = responseText
+        .split(/(?<=[.!?])\s+/)
+        .map(s => s.trim())
+        .filter(s => s.length > 20);
+
+    const chunkSize = Math.ceil(sentences.length / 3);
+    const chunks = [];
+    for (let i = 0; i < sentences.length && chunks.length < 4; i += chunkSize) {
+        const chunk = sentences.slice(i, i + chunkSize).join(" ");
+        chunks.push(chunk);
+    }
+
+    if (chunks.length === 0) {
+        return [{ number: 1, title: "Summary", body: responseText.slice(0, 200) }];
+    }
+
+    return chunks.slice(0, 4).map((chunk, i) => ({
+        number: i + 1,
+        title: `Point ${i + 1}`,
+        body: chunk.length > 180 ? chunk.slice(0, 177) + "…" : chunk,
+    }));
+}
+
+// ── Generate Slides Modal ──────────────────────────────
+function GenerateSlidesModal({ msgId, responseText, onClose }) {
+    const slides = extractSlides(responseText);
+    const [slideImages, setSlideImages] = useState({}); // { slideIndex: imgSrc | "loading" | "error" }
+    const [currentSlide, setCurrentSlide] = useState(0);
+    const [allGenerated, setAllGenerated] = useState(false);
+    const generatedRef = useRef(false);
+
+    // Generate all slide images on mount
+    useEffect(() => {
+        if (generatedRef.current) return;
+        generatedRef.current = true;
+
+        const generateAll = async () => {
+            // Mark all as loading
+            const initial = {};
+            slides.forEach((_, i) => { initial[i] = "loading"; });
+            setSlideImages(initial);
+
+            // Generate in parallel
+            await Promise.all(
+                slides.map(async (slide, i) => {
+                    try {
+                        const prompt = `Educational illustration for a school textbook slide about: "${slide.body}". Clean, colorful, child-friendly, flat illustration style, white background, no text.`;
+                        const imgEl = await window.puter.ai.txt2img(prompt);
+                        const src = imgEl.src; // data URL
+                        setSlideImages(prev => ({ ...prev, [i]: src }));
+                    } catch (err) {
+                        console.error(`Slide ${i + 1} image error:`, err);
+                        setSlideImages(prev => ({ ...prev, [i]: "error" }));
+                    }
+                })
+            );
+            setAllGenerated(true);
+        };
+
+        generateAll();
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const handleDownload = (src, idx) => {
+        if (!src || src === "loading" || src === "error") return;
+        const a = document.createElement("a");
+        a.href = src;
+        a.download = `slide-${idx + 1}.png`;
+        a.click();
+    };
+
+    const slide = slides[currentSlide];
+    const imgState = slideImages[currentSlide];
+
+    return (
+        <>
+            {/* Backdrop */}
+            <div
+                style={{
+                    position: "fixed", inset: 0, zIndex: 60,
+                    background: "rgba(0,0,0,0.65)",
+                    backdropFilter: "blur(6px)",
+                    animation: "fadeIn 0.2s ease",
+                }}
+                onClick={onClose}
+            />
+
+            {/* Modal */}
+            <div
+                style={{
+                    position: "fixed",
+                    inset: 0,
+                    zIndex: 61,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "16px",
+                    pointerEvents: "none",
+                }}
+            >
+                <div
+                    style={{
+                        pointerEvents: "all",
+                        width: "100%",
+                        maxWidth: "680px",
+                        background: "linear-gradient(145deg, #13131f 0%, #1a1a30 100%)",
+                        border: "1px solid rgba(255,255,255,0.1)",
+                        borderRadius: "20px",
+                        boxShadow: "0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04)",
+                        overflow: "hidden",
+                        animation: "slideUpModal 0.3s cubic-bezier(0.34,1.4,0.64,1) both",
+                    }}
+                    onClick={e => e.stopPropagation()}
+                >
+                    {/* Header */}
+                    <div style={{
+                        display: "flex", alignItems: "center", justifyContent: "space-between",
+                        padding: "16px 20px 14px",
+                        borderBottom: "1px solid rgba(255,255,255,0.07)",
+                    }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                            <div style={{
+                                width: 32, height: 32, borderRadius: 8,
+                                background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                fontSize: 16,
+                            }}>🖼️</div>
+                            <div>
+                                <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "#fff", letterSpacing: "-0.2px" }}>
+                                    Generated Slides
+                                </p>
+                                <p style={{ margin: 0, fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
+                                    {slides.length} slides · powered by Puter AI
+                                </p>
+                            </div>
+                        </div>
+                        <button onClick={onClose} style={{
+                            background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.08)",
+                            borderRadius: 8, width: 30, height: 30,
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            cursor: "pointer", color: "rgba(255,255,255,0.5)",
+                        }}>
+                            <XIcon />
+                        </button>
+                    </div>
+
+                    {/* Slide viewer */}
+                    <div style={{ padding: "20px 20px 0" }}>
+                        {/* Slide number strip */}
+                        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+                            {slides.map((_, i) => (
+                                <button
+                                    key={i}
+                                    onClick={() => setCurrentSlide(i)}
+                                    style={{
+                                        flex: 1, height: 4, borderRadius: 4, border: "none", cursor: "pointer",
+                                        background: i === currentSlide
+                                            ? "linear-gradient(90deg,#6366f1,#8b5cf6)"
+                                            : "rgba(255,255,255,0.12)",
+                                        transition: "all 0.25s ease",
+                                    }}
+                                />
+                            ))}
+                        </div>
+
+                        {/* Slide card */}
+                        <div style={{
+                            borderRadius: 14,
+                            overflow: "hidden",
+                            border: "1px solid rgba(255,255,255,0.08)",
+                            background: "rgba(255,255,255,0.03)",
+                            position: "relative",
+                        }}>
+                            {/* Image area */}
+                            <div style={{
+                                height: 240,
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                background: "linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.08))",
+                                position: "relative",
+                                overflow: "hidden",
+                            }}>
+                                {imgState === "loading" && (
+                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+                                        <div style={{
+                                            width: 36, height: 36, borderRadius: "50%",
+                                            border: "3px solid rgba(99,102,241,0.3)",
+                                            borderTopColor: "#6366f1",
+                                            animation: "spin 0.8s linear infinite",
+                                        }} />
+                                        <p style={{ margin: 0, fontSize: 12, color: "rgba(255,255,255,0.35)" }}>
+                                            Generating image…
+                                        </p>
+                                    </div>
+                                )}
+                                {imgState === "error" && (
+                                    <div style={{ textAlign: "center" }}>
+                                        <div style={{ fontSize: 32, marginBottom: 8 }}>⚠️</div>
+                                        <p style={{ margin: 0, fontSize: 12, color: "rgba(255,255,255,0.35)" }}>
+                                            Image generation failed
+                                        </p>
+                                    </div>
+                                )}
+                                {imgState && imgState !== "loading" && imgState !== "error" && (
+                                    <img
+                                        src={imgState}
+                                        alt={`Slide ${currentSlide + 1}`}
+                                        style={{
+                                            width: "100%", height: "100%",
+                                            objectFit: "cover",
+                                            animation: "fadeIn 0.4s ease",
+                                        }}
+                                    />
+                                )}
+
+                                {/* Slide number badge */}
+                                <div style={{
+                                    position: "absolute", top: 10, left: 10,
+                                    background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)",
+                                    borderRadius: 6, padding: "2px 8px",
+                                    fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.8)",
+                                    letterSpacing: "0.5px",
+                                }}>
+                                    {currentSlide + 1} / {slides.length}
+                                </div>
+
+                                {/* Download button */}
+                                {imgState && imgState !== "loading" && imgState !== "error" && (
+                                    <button
+                                        onClick={() => handleDownload(imgState, currentSlide)}
+                                        title="Download slide image"
+                                        style={{
+                                            position: "absolute", top: 10, right: 10,
+                                            background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)",
+                                            border: "1px solid rgba(255,255,255,0.1)",
+                                            borderRadius: 6, padding: "4px 8px",
+                                            display: "flex", alignItems: "center", gap: 4,
+                                            cursor: "pointer", color: "rgba(255,255,255,0.75)",
+                                            fontSize: 11,
+                                        }}
+                                    >
+                                        <DownloadIcon /> Save
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Slide text */}
+                            <div style={{ padding: "14px 18px 18px" }}>
+                                <p style={{
+                                    margin: "0 0 6px",
+                                    fontSize: 13, fontWeight: 700, color: "#fff",
+                                    letterSpacing: "-0.2px",
+                                }}>
+                                    {slide.title}
+                                </p>
+                                <p style={{
+                                    margin: 0,
+                                    fontSize: 12, lineHeight: 1.6,
+                                    color: "rgba(255,255,255,0.55)",
+                                }}>
+                                    {slide.body}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Nav controls */}
+                    <div style={{
+                        display: "flex", alignItems: "center", justifyContent: "space-between",
+                        padding: "14px 20px 20px",
+                    }}>
+                        <button
+                            onClick={() => setCurrentSlide(i => Math.max(0, i - 1))}
+                            disabled={currentSlide === 0}
+                            style={{
+                                background: "rgba(255,255,255,0.06)",
+                                border: "1px solid rgba(255,255,255,0.08)",
+                                borderRadius: 10, padding: "8px 16px",
+                                display: "flex", alignItems: "center", gap: 6,
+                                color: currentSlide === 0 ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.7)",
+                                fontSize: 12, fontWeight: 500, cursor: currentSlide === 0 ? "default" : "pointer",
+                                transition: "all 0.2s",
+                            }}
+                        >
+                            <ChevronLeftIcon /> Prev
+                        </button>
+
+                        <div style={{ display: "flex", gap: 6 }}>
+                            {slides.map((_, i) => (
+                                <div key={i} onClick={() => setCurrentSlide(i)} style={{
+                                    width: i === currentSlide ? 20 : 6,
+                                    height: 6, borderRadius: 3,
+                                    background: i === currentSlide
+                                        ? "linear-gradient(90deg,#6366f1,#8b5cf6)"
+                                        : "rgba(255,255,255,0.2)",
+                                    cursor: "pointer",
+                                    transition: "all 0.3s ease",
+                                }} />
+                            ))}
+                        </div>
+
+                        <button
+                            onClick={() => setCurrentSlide(i => Math.min(slides.length - 1, i + 1))}
+                            disabled={currentSlide === slides.length - 1}
+                            style={{
+                                background: currentSlide === slides.length - 1
+                                    ? "rgba(255,255,255,0.06)"
+                                    : "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                                border: "none",
+                                borderRadius: 10, padding: "8px 16px",
+                                display: "flex", alignItems: "center", gap: 6,
+                                color: currentSlide === slides.length - 1 ? "rgba(255,255,255,0.2)" : "#fff",
+                                fontSize: 12, fontWeight: 500,
+                                cursor: currentSlide === slides.length - 1 ? "default" : "pointer",
+                                transition: "all 0.2s",
+                            }}
+                        >
+                            Next <ChevronRightIcon />
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <style>{`
+                @keyframes slideUpModal {
+                    0%   { opacity: 0; transform: translateY(24px) scale(0.97); }
+                    100% { opacity: 1; transform: translateY(0) scale(1); }
+                }
+                @keyframes spin {
+                    to { transform: rotate(360deg); }
+                }
+            `}</style>
+        </>
+    );
+}
+
+// ── Generate Video Modal ──────────────────────────────
+function GenerateVideoModal({ msgId, responseText, messagePayload, onClose }) {
+    const canvasRef = useRef(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [scenes, setScenes] = useState([]);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [progress, setProgress] = useState(0);
+
+    const animationRef = useRef(null);
+    const startTimeRef = useRef(0);
+    const pauseTimeRef = useRef(0);
+    const totalDurationRef = useRef(0);
+
+    // Fetch video JSON from webhook
+    useEffect(() => {
+        let isMounted = true;
+        const fetchVideoData = async () => {
+            try {
+                const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_VIDEO;
+                if (!webhookUrl) throw new Error("VITE_N8N_WEBHOOK_VIDEO is missing in .env");
+
+                const res = await fetch(webhookUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(messagePayload),
+                });
+                if (!res.ok) throw new Error(`Webhook error: ${res.status}`);
+                
+                const data = await res.json();
+                
+                let parsedScenes = data.scenes || (Array.isArray(data) ? data : []);
+                if (parsedScenes.length === 0) {
+                     parsedScenes = [
+                         { title: "Introduction", content: "Generating video based on text.", duration: 3000, color: "#6366f1" },
+                         { title: "Content", content: responseText.slice(0, 100), duration: 4000, color: "#8b5cf6" },
+                     ];
+                }
+                
+                if (isMounted) {
+                    setScenes(parsedScenes);
+                    totalDurationRef.current = parsedScenes.reduce((acc, s) => acc + (s.duration || 3000), 0);
+                    setLoading(false);
+                }
+            } catch (err) {
+                console.error("Video webhook error:", err);
+                if (isMounted) {
+                    setError(err.message);
+                    setLoading(false);
+                }
+            }
+        };
+        fetchVideoData();
+        return () => { isMounted = false; };
+    }, [messagePayload, responseText]);
+
+    // Canvas Render Loop
+    const renderFrame = useCallback((timestamp) => {
+        if (!startTimeRef.current) startTimeRef.current = timestamp;
+        let elapsed = timestamp - startTimeRef.current;
+        
+        if (elapsed > totalDurationRef.current) {
+            setIsPlaying(false);
+            setProgress(100);
+            return;
+        }
+
+        setProgress((elapsed / totalDurationRef.current) * 100);
+
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext("2d");
+        const width = canvas.width;
+        const height = canvas.height;
+
+        let currentScene = scenes[0];
+        let sceneStart = 0;
+        let runningTime = 0;
+        for (const scene of scenes) {
+            const d = scene.duration || 3000;
+            if (elapsed >= runningTime && elapsed < runningTime + d) {
+                currentScene = scene;
+                sceneStart = runningTime;
+                break;
+            }
+            runningTime += d;
+        }
+
+        const sceneElapsed = elapsed - sceneStart;
+        const sceneDur = currentScene.duration || 3000;
+        const sceneProgress = sceneElapsed / sceneDur;
+
+        // Clear
+        ctx.fillStyle = "#111118";
+        ctx.fillRect(0, 0, width, height);
+
+        const baseColor = currentScene.color || "#6366f1";
+        ctx.beginPath();
+        ctx.arc(width/2, height/2, 100 + Math.sin(sceneProgress * Math.PI) * 200, 0, 2*Math.PI);
+        ctx.fillStyle = baseColor;
+        ctx.globalAlpha = 0.15 + 0.1 * Math.sin(sceneProgress * Math.PI);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 36px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        
+        const titleY = height / 2 - 40;
+        const yOffset = Math.max(0, 50 * (1 - sceneProgress * 5));
+        ctx.globalAlpha = Math.min(1, sceneProgress * 5);
+        ctx.fillText(currentScene.title || "Scene", width / 2, titleY + yOffset);
+        
+        ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+        ctx.font = "20px sans-serif";
+        const maxLineWidth = width * 0.8;
+        const words = (currentScene.content || "").split(" ");
+        let line = "";
+        let lineY = height / 2 + 20;
+        
+        ctx.globalAlpha = Math.max(0, Math.min(1, (sceneProgress - 0.2) * 5));
+        for (let n = 0; n < words.length; n++) {
+            const testLine = line + words[n] + " ";
+            const metrics = ctx.measureText(testLine);
+            if (metrics.width > maxLineWidth && n > 0) {
+                ctx.fillText(line.trim(), width / 2, lineY);
+                line = words[n] + " ";
+                lineY += 30;
+            } else {
+                line = testLine;
+            }
+        }
+        ctx.fillText(line.trim(), width / 2, lineY);
+        ctx.globalAlpha = 1;
+
+        if (isPlaying) {
+            animationRef.current = requestAnimationFrame(renderFrame);
+        }
+    }, [isPlaying, scenes]);
+
+    useEffect(() => {
+        if (isPlaying && !loading && !error && scenes.length > 0) {
+            if (progress >= 100) {
+                startTimeRef.current = 0;
+            } else if (pauseTimeRef.current) {
+                startTimeRef.current += performance.now() - pauseTimeRef.current;
+                pauseTimeRef.current = 0;
+            }
+            animationRef.current = requestAnimationFrame(renderFrame);
+        } else {
+            if (animationRef.current) cancelAnimationFrame(animationRef.current);
+            pauseTimeRef.current = performance.now();
+        }
+        return () => cancelAnimationFrame(animationRef.current);
+    }, [isPlaying, loading, error, scenes, progress, renderFrame]);
+
+    useEffect(() => {
+        if (!loading && !error && scenes.length > 0 && !isPlaying && progress === 0) {
+           const setupDraw = (t) => {
+               startTimeRef.current = t;
+               renderFrame(t); 
+               setIsPlaying(false);
+           };
+           requestAnimationFrame(setupDraw);
+        }
+    }, [loading, error, scenes, isPlaying, progress, renderFrame]);
+
+    // Provide the actual VideoIcon svg inline since it's locally scoped above
+    const LocalVideoIcon = () => (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+            <polygon points="23 7 16 12 23 17 23 7" />
+            <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+        </svg>
+    );
+
+    const LocalXIcon = () => (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+    );
+
+    return (
+        <>
+            <div style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(0,0,0,0.8)", backdropFilter: "blur(6px)", animation: "fadeIn 0.2s ease" }} onClick={onClose} />
+            <div style={{ position: "fixed", inset: 0, zIndex: 61, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px", pointerEvents: "none" }}>
+                <div style={{ pointerEvents: "all", width: "100%", maxWidth: "800px", background: "#0f0f13", borderRadius: "16px", border: "1px solid rgba(255,255,255,0.1)", overflow: "hidden", animation: "popIn 0.3s cubic-bezier(0.34,1.4,0.64,1) both" }} onClick={e => e.stopPropagation()}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#fff", fontWeight: 600 }}>
+                            <LocalVideoIcon /> Generated Video
+                        </div>
+                        <button onClick={onClose} style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.5)", cursor: "pointer" }}><LocalXIcon /></button>
+                    </div>
+                    <div style={{ position: "relative", width: "100%", aspectRatio: "16/9", background: "#000" }}>
+                        {loading && (
+                            <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.5)" }}>
+                                <div style={{ width: 40, height: 40, border: "3px solid rgba(99,102,241,0.3)", borderTopColor: "#6366f1", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+                                <div style={{ marginTop: 16 }}>Generating animation...</div>
+                            </div>
+                        )}
+                        {error && (
+                            <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#ef4444" }}>
+                                Error: {error}
+                            </div>
+                        )}
+                        <canvas ref={canvasRef} width={800} height={450} style={{ width: "100%", height: "100%", opacity: loading || error ? 0 : 1 }} />
+                    </div>
+                    {!loading && !error && (
+                        <div style={{ padding: "16px", background: "#181820" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                                <button onClick={() => setIsPlaying(!isPlaying)} style={{ background: "#6366f1", border: "none", borderRadius: "50%", width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", cursor: "pointer" }}>
+                                    {isPlaying ? <span style={{fontSize:'12px',fontWeight:'bold'}}>||</span> : <span style={{fontSize:'14px',marginLeft:'4px'}}>▶</span>}
+                                </button>
+                                <div style={{ flex: 1, height: 6, background: "rgba(255,255,255,0.1)", borderRadius: 3, cursor: "pointer", position: "relative" }}>
+                                    <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${progress}%`, background: "#8b5cf6", borderRadius: 3, transition: isPlaying ? "none" : "width 0.1s" }} />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </>
+    );
+}
 
 // ── Pop Card Component ─────────────────────────────────
 function PopCard({ chip, onClose, onConfirm }) {
@@ -236,21 +861,22 @@ const DEMO_MESSAGES = [
     },
 ];
 
-const QUICK_CHIPS = ["Generate Slides"];
 
-export default function ChatPanel({ style, bookTitle = "Unknown", pageNumber = 0 }) {
+
+export default function ChatPanel({ style, bookTitle = "English-Textbook 5th SSC Maharashtra Board", pageNumber = 0, chapterTitle = "" }) {
     const [messages, setMessages] = useState(DEMO_MESSAGES);
     const [input, setInput] = useState("");
     const [isTyping, setIsTyping] = useState(false);
-    const [popChip, setPopChip] = useState(null); // which chip triggered the pop card
+    const [popChip, setPopChip] = useState(null);       // which chip triggered the pop card
     const [speakingMsgId, setSpeakingMsgId] = useState(null); // which msg is being read aloud
-    const currentAudioRef = useRef(null); // ref to current playing audio
+    const [slidesForMsgId, setSlidesForMsgId] = useState(null); // which msg opened slides modal
+    const [videoForMsg, setVideoForMsg] = useState(null); // which msg opened video modal
+    const currentAudioRef = useRef(null);
     const chatScrollRef = useRef(null);
     const textareaRef = useRef(null);
 
     // ── Read Aloud via Puter.js TTS ────────────────────
     const handleReadAloud = async (msgId, text) => {
-        // If already playing this message, stop it
         if (speakingMsgId === msgId) {
             if (currentAudioRef.current) {
                 currentAudioRef.current.pause();
@@ -261,7 +887,6 @@ export default function ChatPanel({ style, bookTitle = "Unknown", pageNumber = 0
             return;
         }
 
-        // Stop any currently playing audio
         if (currentAudioRef.current) {
             currentAudioRef.current.pause();
             currentAudioRef.current.currentTime = 0;
@@ -270,7 +895,6 @@ export default function ChatPanel({ style, bookTitle = "Unknown", pageNumber = 0
 
         try {
             setSpeakingMsgId(msgId);
-            // Use Puter.js free TTS — no API key needed
             const audio = await window.puter.ai.txt2speech(text, "en-US");
             currentAudioRef.current = audio;
             audio.play();
@@ -343,6 +967,7 @@ export default function ChatPanel({ style, bookTitle = "Unknown", pageNumber = 0
                     })),
                     bookTitle,
                     pageNumber,
+                    chapterTitle,
                 }),
             });
 
@@ -404,8 +1029,32 @@ export default function ChatPanel({ style, bookTitle = "Unknown", pageNumber = 0
         setPopChip(chip);
     };
 
+    // Find the message whose slides modal is open
+    const slidesMsg = slidesForMsgId
+        ? messages.find(m => m.id === slidesForMsgId)
+        : null;
+
     return (
         <>
+            {/* ── Generate Slides Modal ────────────────── */}
+            {slidesMsg && (
+                <GenerateSlidesModal
+                    msgId={slidesMsg.id}
+                    responseText={slidesMsg.response}
+                    onClose={() => setSlidesForMsgId(null)}
+                />
+            )}
+
+            {/* ── Generate Video Modal ─────────────────── */}
+            {videoForMsg && (
+                <GenerateVideoModal
+                    msgId={videoForMsg.id}
+                    responseText={videoForMsg.response}
+                    messagePayload={videoForMsg.payload}
+                    onClose={() => setVideoForMsg(null)}
+                />
+            )}
+
             {/* ── Pop Card ───────────────────────────── */}
             {popChip && (
                 <PopCard
@@ -446,7 +1095,10 @@ export default function ChatPanel({ style, bookTitle = "Unknown", pageNumber = 0
                                             <div className="chat-avatar animate-glow-pulse">🤖</div>
                                             <div className="flex flex-col gap-1.5">
                                                 <div className="chat-bubble-ai">{msg.response}</div>
-                                                <div className="flex items-center gap-1.5">
+
+                                                {/* ── Action buttons row (always shown for AI) ── */}
+                                                <div className="flex items-center gap-1.5 flex-wrap">
+
                                                     {/* Read Aloud Button */}
                                                     <button
                                                         onClick={() => handleReadAloud(msg.id, msg.response)}
@@ -477,19 +1129,73 @@ export default function ChatPanel({ style, bookTitle = "Unknown", pageNumber = 0
                                                         {speakingMsgId === msg.id ? <StopCircleIcon /> : <SpeakerIcon />}
                                                         <span>{speakingMsgId === msg.id ? 'Stop' : 'Listen'}</span>
                                                     </button>
-                                                    {msg.showChips && (
-                                                        <div className="chat-chips" style={{ marginLeft: '4px' }}>
-                                                            {QUICK_CHIPS.map((chip) => (
-                                                                <button
-                                                                    key={chip}
-                                                                    className="chat-chip"
-                                                                    onClick={() => handleChipClick(chip)}
-                                                                >
-                                                                    {chip}
-                                                                </button>
-                                                            ))}
-                                                        </div>
-                                                    )}
+
+                                                    {/* ── Generate Slides Button (every AI message) ── */}
+                                                    <button
+                                                        onClick={() => setSlidesForMsgId(msg.id)}
+                                                        title="Generate slides from this response"
+                                                        className="gen-slides-btn"
+                                                        style={{
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '4px',
+                                                            padding: '3px 8px',
+                                                            borderRadius: '6px',
+                                                            border: '1px solid rgba(99,102,241,0.3)',
+                                                            background: slidesForMsgId === msg.id
+                                                                ? 'linear-gradient(135deg, #6366f1, #8b5cf6)'
+                                                                : 'rgba(99,102,241,0.08)',
+                                                            color: slidesForMsgId === msg.id
+                                                                ? '#fff'
+                                                                : '#818cf8',
+                                                            fontSize: '11px',
+                                                            fontWeight: 500,
+                                                            cursor: 'pointer',
+                                                            transition: 'all 0.2s ease',
+                                                        }}
+                                                    >
+                                                        <SlidesIcon />
+                                                        <span>Slides</span>
+                                                    </button>
+
+                                                    {/* ── Generate Video Button (every AI message) ── */}
+                                                    <button
+                                                        onClick={() => setVideoForMsg({
+                                                            id: msg.id,
+                                                            response: msg.response,
+                                                            payload: {
+                                                                message: msg.response,
+                                                                bookTitle,
+                                                                pageNumber,
+                                                                chapterTitle,
+                                                            }
+                                                        })}
+                                                        title="Generate video from this response"
+                                                        className="gen-video-btn"
+                                                        style={{
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '4px',
+                                                            padding: '3px 8px',
+                                                            borderRadius: '6px',
+                                                            border: '1px solid rgba(236,72,153,0.3)',
+                                                            background: videoForMsg?.id === msg.id
+                                                                ? 'linear-gradient(135deg, #ec4899, #f43f5e)'
+                                                                : 'rgba(236,72,153,0.08)',
+                                                            color: videoForMsg?.id === msg.id
+                                                                ? '#fff'
+                                                                : '#f472b6',
+                                                            fontSize: '11px',
+                                                            fontWeight: 500,
+                                                            cursor: 'pointer',
+                                                            transition: 'all 0.2s ease',
+                                                        }}
+                                                    >
+                                                        <VideoIcon />
+                                                        <span>Video</span>
+                                                    </button>
+
+
                                                 </div>
                                             </div>
                                         </div>
@@ -540,7 +1246,7 @@ export default function ChatPanel({ style, bookTitle = "Unknown", pageNumber = 0
                     <p className="chat-disclaimer">AI can make mistakes. Verify important info.</p>
                 </div>
 
-                {/* TTS pulse animation */}
+                {/* Animations */}
                 <style>{`
                     @keyframes tts-pulse {
                         0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
@@ -556,6 +1262,20 @@ export default function ChatPanel({ style, bookTitle = "Unknown", pageNumber = 0
                     .dark .read-aloud-btn:hover {
                         border-color: #818cf8 !important;
                         color: #818cf8 !important;
+                    }
+                    .gen-slides-btn:hover {
+                        background: linear-gradient(135deg, #6366f1, #8b5cf6) !important;
+                        color: #fff !important;
+                        border-color: transparent !important;
+                        transform: translateY(-1px);
+                        box-shadow: 0 4px 12px rgba(99,102,241,0.35);
+                    }
+                    .gen-video-btn:hover {
+                        background: linear-gradient(135deg, #ec4899, #f43f5e) !important;
+                        color: #fff !important;
+                        border-color: transparent !important;
+                        transform: translateY(-1px);
+                        box-shadow: 0 4px 12px rgba(236,72,153,0.35);
                     }
                 `}</style>
             </section>

@@ -11,6 +11,7 @@ export default function HomePage() {
     // Shared between IndexPanel (sets page on click)
     // and BookPanel (reads page to show correct PDF page)
     const [page, setPage] = useState(1);
+    const [chapterTitle, setChapterTitle] = useState("");
 
     // ── Panel widths for drag resizing ─────────────────
     const [indexWidth, setIndexWidth] = useState(260);
@@ -71,6 +72,7 @@ export default function HomePage() {
                 <IndexPanel
                     style={{ width: indexWidth, minWidth: indexWidth, flexShrink: 0 }}
                     onPageChange={setPage}
+                    onChapterChange={setChapterTitle}
                 />
 
                 <div
@@ -91,6 +93,7 @@ export default function HomePage() {
 
                 <ChatPanel
                     style={{ width: chatWidth, minWidth: 360, flexShrink: 0 }}
+                    chapterTitle={chapterTitle}
                 />
             </div>
 
@@ -107,6 +110,7 @@ export default function HomePage() {
 // ── Mobile tab switcher ────────────────────────────────
 function MobilePanels({ page, setPage }) {
     const [activeTab, setActiveTab] = useState("book");
+    const [chapterTitle, setChapterTitle] = useState("");
 
     const tabs = [
         { id: "index", label: "Index", icon: "📑" },
@@ -128,6 +132,7 @@ function MobilePanels({ page, setPage }) {
                     <IndexPanel
                         style={{ width: "100%", height: "100%" }}
                         onPageChange={handlePageChange}
+                        onChapterChange={setChapterTitle}
                     />
                 )}
                 {activeTab === "book" && (
@@ -140,6 +145,7 @@ function MobilePanels({ page, setPage }) {
                 {activeTab === "chat" && (
                     <ChatPanel
                         style={{ width: "100%", height: "100%" }}
+                        chapterTitle={chapterTitle}
                     />
                 )}
             </div>

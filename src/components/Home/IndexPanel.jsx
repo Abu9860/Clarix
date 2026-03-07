@@ -37,7 +37,7 @@ const BookOpenIcon = () => (
 //   unit         — string  ← used to group chapters
 //   book_id      — string
 // ─────────────────────────────────────────────────────────
-export default function IndexPanel({ style, onPageChange }) {
+export default function IndexPanel({ style, onPageChange, onChapterChange }) {
 
     const [chapters, setChapters] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -74,6 +74,9 @@ export default function IndexPanel({ style, onPageChange }) {
                     if (onPageChange && sorted[0].page_start) {
                         onPageChange(sorted[0].page_start);
                     }
+                    if (onChapterChange) {
+                        onChapterChange(sorted[0].title || "");
+                    }
                 }
             } catch (err) {
                 console.error("Error fetching chapters:", err);
@@ -91,6 +94,10 @@ export default function IndexPanel({ style, onPageChange }) {
         // Jump PDF to page_start
         if (onPageChange && chapter.page_start) {
             onPageChange(chapter.page_start);
+        }
+        // Notify parent of the active chapter title
+        if (onChapterChange) {
+            onChapterChange(chapter.title || "");
         }
     };
 
