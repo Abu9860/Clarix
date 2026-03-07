@@ -1,99 +1,43 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import Navbar from "../components/Layout/Navbar";
 import Footer from "../components/Layout/Footer";
 import IndexPanel from "../components/Home/IndexPanel";
 import BookPanel from "../components/Home/BookPanel";
 import ChatPanel from "../components/Home/ChatPanel";
 
-// Mobile tab bar icons
-const BookOpenIcon = () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-    </svg>
-);
-
-const FileTextIcon = () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-        <polyline points="14 2 14 8 20 8" />
-        <line x1="16" y1="13" x2="8" y2="13" />
-        <line x1="16" y1="17" x2="8" y2="17" />
-        <polyline points="10 9 9 9 8 9" />
-    </svg>
-);
-
-const MessageIcon = () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-    </svg>
-);
-
-const PANEL_DEFAULTS = {
-    index: 260,
-    chat: 360,
-};
-const PANEL_LIMITS = {
-    index: { min: 200, max: 340 },
-    chat: { min: 260, max: 520 },
-};
-
 export default function HomePage() {
-    // Panel widths
-    const [indexWidth, setIndexWidth] = useState(PANEL_DEFAULTS.index);
-    const [chatWidth, setChatWidth] = useState(PANEL_DEFAULTS.chat);
 
-    // Mobile: which tab is active — "index" | "book" | "chat"
-    const [mobileTab, setMobileTab] = useState("book");
-    // Tablet: show index sidebar via hamburger
-    const [showIndexMd, setShowIndexMd] = useState(false);
+    // ── Lifted page state ──────────────────────────────
+    // Shared between IndexPanel (sets page on click)
+    // and BookPanel (reads page to show correct PDF page)
+    const [page, setPage] = useState(1);
 
-    // Drag refs
-    const isDraggingLeft = useRef(false);
-    const isDraggingRight = useRef(false);
-    const dragStartX = useRef(0);
-    const dragStartWidth = useRef(0);
-
+    // ── Panel widths for drag resizing ─────────────────
+    const [indexWidth, setIndexWidth] = useState(260);
+    const [chatWidth, setChatWidth] = useState(360);
+    const isDraggingIndex = useRef(false);
+    const isDraggingChat = useRef(false);
     const containerRef = useRef(null);
 
-    // ── Drag: Index panel (left handle) ────────────────
-    const onLeftDragStart = useCallback((e) => {
-        isDraggingLeft.current = true;
-        dragStartX.current = e.clientX;
-        dragStartWidth.current = indexWidth;
-        e.preventDefault();
-    }, [indexWidth]);
-
-    // ── Drag: Chat panel (right handle) ────────────────
-    const onRightDragStart = useCallback((e) => {
-        isDraggingRight.current = true;
-        dragStartX.current = e.clientX;
-        dragStartWidth.current = chatWidth;
-        e.preventDefault();
-    }, [chatWidth]);
-
+    // ── Drag logic ─────────────────────────────────────
     useEffect(() => {
         const onMouseMove = (e) => {
-            if (isDraggingLeft.current) {
-                const delta = e.clientX - dragStartX.current;
-                const newWidth = Math.min(
-                    PANEL_LIMITS.index.max,
-                    Math.max(PANEL_LIMITS.index.min, dragStartWidth.current + delta)
-                );
+            if (!containerRef.current) return;
+            const rect = containerRef.current.getBoundingClientRect();
+            if (isDraggingIndex.current) {
+                const newWidth = Math.min(Math.max(e.clientX - rect.left, 180), 400);
                 setIndexWidth(newWidth);
             }
-            if (isDraggingRight.current) {
-                const delta = dragStartX.current - e.clientX;
-                const newWidth = Math.min(
-                    PANEL_LIMITS.chat.max,
-                    Math.max(PANEL_LIMITS.chat.min, dragStartWidth.current + delta)
-                );
+            if (isDraggingChat.current) {
+                const newWidth = Math.min(Math.max(rect.right - e.clientX, 260), 500);
                 setChatWidth(newWidth);
             }
         };
         const onMouseUp = () => {
-            isDraggingLeft.current = false;
-            isDraggingRight.current = false;
+            isDraggingIndex.current = false;
+            isDraggingChat.current = false;
+            document.body.style.cursor = "";
+            document.body.style.userSelect = "";
         };
         window.addEventListener("mousemove", onMouseMove);
         window.addEventListener("mouseup", onMouseUp);
@@ -103,73 +47,117 @@ export default function HomePage() {
         };
     }, []);
 
+    const startDragIndex = () => {
+        isDraggingIndex.current = true;
+        document.body.style.cursor = "col-resize";
+        document.body.style.userSelect = "none";
+    };
+
+    const startDragChat = () => {
+        isDraggingChat.current = true;
+        document.body.style.cursor = "col-resize";
+        document.body.style.userSelect = "none";
+    };
+
     return (
         <div className="h-screen flex flex-col overflow-hidden bg-light-bg dark:bg-dark-bg">
-            {/* Navbar */}
-            <Navbar onMenuClick={() => setShowIndexMd((v) => !v)} />
+            <Navbar />
 
-            {/* ── Desktop & Tablet — Three Panel Layout ───── */}
+            {/* ── Desktop 3-panel layout ── */}
             <div
                 ref={containerRef}
-                className="hidden sm:flex panel-layout select-none"
+                className="hidden sm:flex panel-layout flex-1 min-h-0"
             >
-                {/* Index panel — hidden on tablet by default, toggled by hamburger */}
-                <div className="hidden md:block">
-                    <IndexPanel style={{ width: indexWidth, minWidth: indexWidth }} />
-                </div>
-                {/* Tablet index panel overlay */}
-                {showIndexMd && (
-                    <div className="md:hidden block">
-                        <IndexPanel style={{ width: indexWidth, minWidth: indexWidth }} />
-                    </div>
+                <IndexPanel
+                    style={{ width: indexWidth, minWidth: indexWidth, flexShrink: 0 }}
+                    onPageChange={setPage}
+                />
+
+                <div
+                    className="clarix-drag-handle hidden md:block"
+                    onMouseDown={startDragIndex}
+                />
+
+                <BookPanel
+                    style={{ flex: 1, minWidth: 0 }}
+                    page={page}
+                    setPage={setPage}
+                />
+
+                <div
+                    className="clarix-drag-handle hidden md:block"
+                    onMouseDown={startDragChat}
+                />
+
+                <ChatPanel
+                    style={{ width: chatWidth, minWidth: 360, flexShrink: 0 }}
+                />
+            </div>
+
+            {/* ── Mobile single panel + tabs ── */}
+            <div className="flex sm:hidden flex-1 min-h-0 relative overflow-hidden">
+                <MobilePanels page={page} setPage={setPage} />
+            </div>
+
+            <Footer className="hidden sm:flex" />
+        </div>
+    );
+}
+
+// ── Mobile tab switcher ────────────────────────────────
+function MobilePanels({ page, setPage }) {
+    const [activeTab, setActiveTab] = useState("book");
+
+    const tabs = [
+        { id: "index", label: "Index", icon: "📑" },
+        { id: "book",  label: "Read",  icon: "📖" },
+        { id: "chat",  label: "Chat",  icon: "💬" },
+    ];
+
+    // When IndexPanel triggers page change on mobile,
+    // also auto-switch to the book tab so student sees the PDF
+    const handlePageChange = (newPage) => {
+        setPage(newPage);
+        setActiveTab("book");
+    };
+
+    return (
+        <div className="flex flex-col w-full h-full">
+            <div className="flex-1 min-h-0 overflow-hidden">
+                {activeTab === "index" && (
+                    <IndexPanel
+                        style={{ width: "100%", height: "100%" }}
+                        onPageChange={handlePageChange}
+                    />
                 )}
-
-                {/* Left drag handle — desktop only */}
-                <div
-                    className="clarix-drag-handle hidden md:block"
-                    onMouseDown={onLeftDragStart}
-                />
-
-                {/* Book panel — fills remaining space */}
-                <BookPanel style={{ flex: 1, minWidth: 0 }} />
-
-                {/* Right drag handle — desktop only */}
-                <div
-                    className="clarix-drag-handle hidden md:block"
-                    onMouseDown={onRightDragStart}
-                />
-
-                {/* Chat panel */}
-                <ChatPanel style={{ width: chatWidth, minWidth: chatWidth }} />
+                {activeTab === "book" && (
+                    <BookPanel
+                        style={{ width: "100%", height: "100%" }}
+                        page={page}
+                        setPage={setPage}
+                    />
+                )}
+                {activeTab === "chat" && (
+                    <ChatPanel
+                        style={{ width: "100%", height: "100%" }}
+                    />
+                )}
             </div>
 
-            {/* ── Mobile — Single panel view ───────────────── */}
-            <div className="sm:hidden flex-1 overflow-hidden">
-                {mobileTab === "index" && <IndexPanel style={{ width: "100%", height: "100%" }} />}
-                {mobileTab === "book" && <BookPanel style={{ width: "100%", height: "100%" }} />}
-                {mobileTab === "chat" && <ChatPanel style={{ width: "100%", height: "100%" }} />}
-            </div>
-
-            {/* ── Footer — hidden on mobile ────────────────── */}
-            <Footer />
-
-            {/* ── Mobile Bottom Tab Bar ───────────────────── */}
-            <div className="sm:hidden fixed bottom-0 left-0 right-0 h-12 flex items-stretch bg-light-surface dark:bg-dark-surface border-t border-light-border dark:border-dark-border z-40">
-                {[
-                    { id: "index", label: "Index", Icon: BookOpenIcon },
-                    { id: "book", label: "Read", Icon: FileTextIcon },
-                    { id: "chat", label: "Chat", Icon: MessageIcon },
-                ].map(({ id, label, Icon }) => (
+            {/* Bottom tab bar */}
+            <div className="flex-shrink-0 flex items-stretch h-12 border-t border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface z-40">
+                {tabs.map((tab) => (
                     <button
-                        key={id}
-                        onClick={() => setMobileTab(id)}
-                        className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-2xs font-medium transition-colors duration-250 ${mobileTab === id
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id)}
+                        className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-2xs font-medium transition-colors duration-200 ${
+                            activeTab === tab.id
                                 ? "text-brand-500"
                                 : "text-light-muted dark:text-dark-muted"
-                            }`}
+                        }`}
                     >
-                        <Icon />
-                        {label}
+                        <span className="text-base leading-none">{tab.icon}</span>
+                        <span>{tab.label}</span>
                     </button>
                 ))}
             </div>
