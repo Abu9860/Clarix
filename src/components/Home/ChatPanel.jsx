@@ -91,6 +91,21 @@ const XIcon = () => (
     </svg>
 );
 
+const SpeakerIcon = () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+    </svg>
+);
+
+const StopCircleIcon = () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+        <circle cx="12" cy="12" r="10" />
+        <rect x="9" y="9" width="6" height="6" />
+    </svg>
+);
+
 // ── Pop Card Component ─────────────────────────────────
 function PopCard({ chip, onClose, onConfirm }) {
     useEffect(() => {
@@ -221,15 +236,63 @@ const DEMO_MESSAGES = [
     },
 ];
 
-const QUICK_CHIPS = ["Summarize story", "What is the moral?", "Generate quiz"];
+const QUICK_CHIPS = ["Generate Slides"];
 
 export default function ChatPanel({ style, bookTitle = "Unknown", pageNumber = 0 }) {
     const [messages, setMessages] = useState(DEMO_MESSAGES);
     const [input, setInput] = useState("");
     const [isTyping, setIsTyping] = useState(false);
     const [popChip, setPopChip] = useState(null); // which chip triggered the pop card
+    const [speakingMsgId, setSpeakingMsgId] = useState(null); // which msg is being read aloud
+    const currentAudioRef = useRef(null); // ref to current playing audio
     const chatScrollRef = useRef(null);
     const textareaRef = useRef(null);
+
+    // ── Read Aloud via Puter.js TTS ────────────────────
+    const handleReadAloud = async (msgId, text) => {
+        // If already playing this message, stop it
+        if (speakingMsgId === msgId) {
+            if (currentAudioRef.current) {
+                currentAudioRef.current.pause();
+                currentAudioRef.current.currentTime = 0;
+                currentAudioRef.current = null;
+            }
+            setSpeakingMsgId(null);
+            return;
+        }
+
+        // Stop any currently playing audio
+        if (currentAudioRef.current) {
+            currentAudioRef.current.pause();
+            currentAudioRef.current.currentTime = 0;
+            currentAudioRef.current = null;
+        }
+
+        try {
+            setSpeakingMsgId(msgId);
+            // Use Puter.js free TTS — no API key needed
+            const audio = await window.puter.ai.txt2speech(text, "en-US");
+            currentAudioRef.current = audio;
+            audio.play();
+            audio.onended = () => {
+                setSpeakingMsgId(null);
+                currentAudioRef.current = null;
+            };
+        } catch (err) {
+            console.error("TTS Error:", err);
+            setSpeakingMsgId(null);
+        }
+    };
+
+    // Cleanup audio on unmount
+    useEffect(() => {
+        return () => {
+            if (currentAudioRef.current) {
+                currentAudioRef.current.pause();
+                currentAudioRef.current = null;
+            }
+        };
+    }, []);
 
     useEffect(() => {
         if (chatScrollRef.current) {
@@ -383,19 +446,51 @@ export default function ChatPanel({ style, bookTitle = "Unknown", pageNumber = 0
                                             <div className="chat-avatar animate-glow-pulse">🤖</div>
                                             <div className="flex flex-col gap-1.5">
                                                 <div className="chat-bubble-ai">{msg.response}</div>
-                                                {msg.showChips && (
-                                                    <div className="chat-chips">
-                                                        {QUICK_CHIPS.map((chip) => (
-                                                            <button
-                                                                key={chip}
-                                                                className="chat-chip"
-                                                                onClick={() => handleChipClick(chip)}
-                                                            >
-                                                                {chip}
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                )}
+                                                <div className="flex items-center gap-1.5">
+                                                    {/* Read Aloud Button */}
+                                                    <button
+                                                        onClick={() => handleReadAloud(msg.id, msg.response)}
+                                                        title={speakingMsgId === msg.id ? "Stop reading" : "Read aloud"}
+                                                        className="read-aloud-btn"
+                                                        style={{
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '4px',
+                                                            padding: '3px 8px',
+                                                            borderRadius: '6px',
+                                                            border: '1px solid var(--color-light-border, rgba(0,0,0,0.1))',
+                                                            background: speakingMsgId === msg.id
+                                                                ? 'linear-gradient(135deg, #6366f1, #8b5cf6)'
+                                                                : 'transparent',
+                                                            color: speakingMsgId === msg.id
+                                                                ? '#fff'
+                                                                : 'var(--color-light-muted, #888)',
+                                                            fontSize: '11px',
+                                                            fontWeight: 500,
+                                                            cursor: 'pointer',
+                                                            transition: 'all 0.2s ease',
+                                                            animation: speakingMsgId === msg.id
+                                                                ? 'tts-pulse 1.5s ease-in-out infinite'
+                                                                : 'none',
+                                                        }}
+                                                    >
+                                                        {speakingMsgId === msg.id ? <StopCircleIcon /> : <SpeakerIcon />}
+                                                        <span>{speakingMsgId === msg.id ? 'Stop' : 'Listen'}</span>
+                                                    </button>
+                                                    {msg.showChips && (
+                                                        <div className="chat-chips" style={{ marginLeft: '4px' }}>
+                                                            {QUICK_CHIPS.map((chip) => (
+                                                                <button
+                                                                    key={chip}
+                                                                    className="chat-chip"
+                                                                    onClick={() => handleChipClick(chip)}
+                                                                >
+                                                                    {chip}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     ) : (
@@ -432,9 +527,7 @@ export default function ChatPanel({ style, bookTitle = "Unknown", pageNumber = 0
                             onChange={handleInputChange}
                             onKeyDown={handleKeyDown}
                         />
-                        <button className="btn-icon-sm" title="Voice input" aria-label="Microphone">
-                            <MicIcon />
-                        </button>
+
                         <button
                             className="chat-send-btn"
                             onClick={() => sendMessage()}
@@ -446,6 +539,25 @@ export default function ChatPanel({ style, bookTitle = "Unknown", pageNumber = 0
                     </div>
                     <p className="chat-disclaimer">AI can make mistakes. Verify important info.</p>
                 </div>
+
+                {/* TTS pulse animation */}
+                <style>{`
+                    @keyframes tts-pulse {
+                        0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
+                        50% { box-shadow: 0 0 0 6px rgba(99, 102, 241, 0); }
+                    }
+                    .read-aloud-btn:hover {
+                        border-color: #6366f1 !important;
+                        color: #6366f1 !important;
+                    }
+                    .dark .read-aloud-btn {
+                        border-color: rgba(255,255,255,0.12) !important;
+                    }
+                    .dark .read-aloud-btn:hover {
+                        border-color: #818cf8 !important;
+                        color: #818cf8 !important;
+                    }
+                `}</style>
             </section>
         </>
     );
