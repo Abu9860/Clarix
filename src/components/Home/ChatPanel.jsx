@@ -536,17 +536,34 @@ function GenerateVideoModal({ msgId, responseText, messagePayload, onClose }) {
                 
                 const data = await res.json();
                 
-                let parsedScenes = data.scenes || (Array.isArray(data) ? data : []);
+                // --- Parse the nested payload format ---
+                let parsedScenes = [];
+                try {
+                    // It might come wrapped in the array format like: [{ output: "```json\n..." }]
+                    let rawOutputObj = data;
+                    if (Array.isArray(data) && data.length > 0 && data[0].output) {
+                        const outputStr = data[0].output.replace(/```json\n|\n```/g, '');
+                        rawOutputObj = JSON.parse(outputStr);
+                    }
+                    if (rawOutputObj && rawOutputObj.video && Array.isArray(rawOutputObj.video.scenes)) {
+                        parsedScenes = rawOutputObj.video.scenes;
+                    } else if (Array.isArray(rawOutputObj.scenes)) {
+                        parsedScenes = rawOutputObj.scenes;
+                    }
+                } catch (e) {
+                    console.error("Error parsing video JSON structure:", e);
+                }
+                
                 if (parsedScenes.length === 0) {
                      parsedScenes = [
-                         { title: "Introduction", content: "Generating video based on text.", duration: 3000, color: "#6366f1" },
-                         { title: "Content", content: responseText.slice(0, 100), duration: 4000, color: "#8b5cf6" },
+                         { duration: 3, background: "#F8F9FA", elements: [{ type: "text", content: "Generating video based on text.", y: 220, fontSize: 32, color: "#1A1A2E" }] },
                      ];
                 }
                 
                 if (isMounted) {
                     setScenes(parsedScenes);
-                    totalDurationRef.current = parsedScenes.reduce((acc, s) => acc + (s.duration || 3000), 0);
+                    // durations are seemingly in seconds in the new structure
+                    totalDurationRef.current = parsedScenes.reduce((acc, s) => acc + ((s.duration || 3) * 1000), 0);
                     setLoading(false);
                 }
             } catch (err) {
@@ -566,7 +583,7 @@ function GenerateVideoModal({ msgId, responseText, messagePayload, onClose }) {
         if (!startTimeRef.current) startTimeRef.current = timestamp;
         let elapsed = timestamp - startTimeRef.current;
         
-        if (elapsed > totalDurationRef.current) {
+        if (elapsed >= totalDurationRef.current) {
             setIsPlaying(false);
             setProgress(100);
             return;
@@ -584,7 +601,7 @@ function GenerateVideoModal({ msgId, responseText, messagePayload, onClose }) {
         let sceneStart = 0;
         let runningTime = 0;
         for (const scene of scenes) {
-            const d = scene.duration || 3000;
+            const d = (scene.duration || 3) * 1000;
             if (elapsed >= runningTime && elapsed < runningTime + d) {
                 currentScene = scene;
                 sceneStart = runningTime;
@@ -594,52 +611,112 @@ function GenerateVideoModal({ msgId, responseText, messagePayload, onClose }) {
         }
 
         const sceneElapsed = elapsed - sceneStart;
-        const sceneDur = currentScene.duration || 3000;
+        const sceneDur = (currentScene.duration || 3) * 1000;
         const sceneProgress = sceneElapsed / sceneDur;
 
-        // Clear
-        ctx.fillStyle = "#111118";
+        // Clear Background
+        ctx.fillStyle = currentScene.background || "#F8F9FA";
         ctx.fillRect(0, 0, width, height);
 
-        const baseColor = currentScene.color || "#6366f1";
+        // Abstract Background graphics
+        const baseColor = "#6366f1";
         ctx.beginPath();
         ctx.arc(width/2, height/2, 100 + Math.sin(sceneProgress * Math.PI) * 200, 0, 2*Math.PI);
         ctx.fillStyle = baseColor;
-        ctx.globalAlpha = 0.15 + 0.1 * Math.sin(sceneProgress * Math.PI);
+        ctx.globalAlpha = 0.05 + 0.05 * Math.sin(sceneProgress * Math.PI);
         ctx.fill();
         ctx.globalAlpha = 1;
 
-        ctx.fillStyle = "#ffffff";
-        ctx.font = "bold 36px sans-serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        
-        const titleY = height / 2 - 40;
-        const yOffset = Math.max(0, 50 * (1 - sceneProgress * 5));
-        ctx.globalAlpha = Math.min(1, sceneProgress * 5);
-        ctx.fillText(currentScene.title || "Scene", width / 2, titleY + yOffset);
-        
-        ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
-        ctx.font = "20px sans-serif";
-        const maxLineWidth = width * 0.8;
-        const words = (currentScene.content || "").split(" ");
-        let line = "";
-        let lineY = height / 2 + 20;
-        
-        ctx.globalAlpha = Math.max(0, Math.min(1, (sceneProgress - 0.2) * 5));
-        for (let n = 0; n < words.length; n++) {
-            const testLine = line + words[n] + " ";
-            const metrics = ctx.measureText(testLine);
-            if (metrics.width > maxLineWidth && n > 0) {
-                ctx.fillText(line.trim(), width / 2, lineY);
-                line = words[n] + " ";
-                lineY += 30;
-            } else {
-                line = testLine;
+        // Render Elements
+        const elements = currentScene.elements || [];
+        for (const el of elements) {
+            if (el.type === "text") {
+                const elDelay = (el.animation?.delay || 0) * 1000;
+                const elDur = (el.animation?.duration || 0.5) * 1000;
+                
+                let elAlpha = 0;
+                if (sceneElapsed > elDelay) {
+                    elAlpha = Math.min(1, (sceneElapsed - elDelay) / elDur);
+                }
+
+                if (elAlpha > 0) {
+                    ctx.globalAlpha = elAlpha;
+                    
+                    // Handle Slide animation Y offset
+                    let yOffset = 0;
+                    if (el.animation?.type === "slide" && el.animation?.direction === "up") {
+                         yOffset = 30 * (1 - elAlpha);
+                    }
+
+                    ctx.fillStyle = el.color || "#1A1A2E";
+                    const fw = el.fontWeight === "bold" ? "bold" : "normal";
+                    const fs = el.fontSize || 24;
+                    ctx.font = `${fw} ${fs}px sans-serif`;
+                    ctx.textAlign = el.x === "center" ? "center" : "left";
+                    ctx.textBaseline = "middle";
+                    
+                    const drawX = el.x === "center" ? width / 2 : (el.x || 50);
+                    let drawY = (el.y || height / 2) + yOffset;
+
+                    // Text wrapping
+                    const maxLineWidth = el.maxWidth || width * 0.8;
+                    const words = (el.content || "").split(" ");
+                    let line = "";
+                    
+                    for (let n = 0; n < words.length; n++) {
+                        const testLine = line + words[n] + " ";
+                        const metrics = ctx.measureText(testLine);
+                        if (metrics.width > maxLineWidth && n > 0) {
+                            ctx.fillText(line.trim(), drawX, drawY);
+                            line = words[n] + " ";
+                            drawY += fs * 1.4;
+                        } else {
+                            line = testLine;
+                        }
+                    }
+                    ctx.fillText(line.trim(), drawX, drawY);
+                    
+                    ctx.globalAlpha = 1;
+                }
+            } else if (el.type === "diagram") {
+                const elDelay = (el.animation?.delay || 0) * 1000;
+                const elDur = (el.animation?.duration || 0.5) * 1000;
+                
+                let elScale = 0;
+                if (sceneElapsed > elDelay) {
+                    elScale = Math.min(1, (sceneElapsed - elDelay) / elDur);
+                }
+
+                if (elScale > 0) {
+                    const rectW = el.width || 400;
+                    const rectH = el.height || 150;
+                    const drawX = el.x === "center" ? width / 2 : (el.x || 50);
+                    const drawY = el.y || 400;
+
+                    ctx.save();
+                    ctx.translate(drawX, drawY);
+                    ctx.scale(elScale, elScale);
+                    
+                    // Box
+                    ctx.fillStyle = "rgba(99, 102, 241, 0.1)";
+                    ctx.strokeStyle = "#8b5cf6";
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.roundRect(-rectW/2, -rectH/2, rectW, rectH, 12);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // Label
+                    ctx.fillStyle = "#8b5cf6";
+                    ctx.font = "italic 18px sans-serif";
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.fillText(el.label || "Diagram", 0, 0);
+
+                    ctx.restore();
+                }
             }
         }
-        ctx.fillText(line.trim(), width / 2, lineY);
-        ctx.globalAlpha = 1;
 
         if (isPlaying) {
             animationRef.current = requestAnimationFrame(renderFrame);
@@ -711,7 +788,7 @@ function GenerateVideoModal({ msgId, responseText, messagePayload, onClose }) {
                                 Error: {error}
                             </div>
                         )}
-                        <canvas ref={canvasRef} width={800} height={450} style={{ width: "100%", height: "100%", opacity: loading || error ? 0 : 1 }} />
+                        <canvas ref={canvasRef} width={1280} height={720} style={{ width: "100%", height: "100%", opacity: loading || error ? 0 : 1 }} />
                     </div>
                     {!loading && !error && (
                         <div style={{ padding: "16px", background: "#181820" }}>
