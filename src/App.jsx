@@ -20,7 +20,7 @@ export default function App() {
       try {
         const res = await databases.listDocuments(
           DATABASE_ID,
-          COLLECTION_ID
+          
         );
         setDocs(res.documents);
       } catch (error) {

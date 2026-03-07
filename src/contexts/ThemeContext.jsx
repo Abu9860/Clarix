@@ -5,7 +5,7 @@ const ThemeContext = createContext();
 export function ThemeProvider({ children }) {
   const [isDark, setIsDark] = useState(() => {
     const stored = localStorage.getItem("clarix-theme");
-    return stored ? stored === "dark" : true; // default dark
+    return stored ? stored === "dark" : false; // default light
   });
 
   useEffect(() => {

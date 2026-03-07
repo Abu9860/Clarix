@@ -4,6 +4,7 @@ import Footer from "../components/Layout/Footer";
 import IndexPanel from "../components/Home/IndexPanel";
 import BookPanel from "../components/Home/BookPanel";
 import ChatPanel from "../components/Home/ChatPanel";
+import { databases, DATABASE_ID, COLLECTION_ID_indexs } from "../lib/appwrite";
 
 // Mobile tab bar icons
 const BookOpenIcon = () => (
@@ -48,6 +49,10 @@ export default function HomePage() {
     // Tablet: show index sidebar via hamburger
     const [showIndexMd, setShowIndexMd] = useState(false);
 
+    // Current book info for chat
+    const [bookTitle, setBookTitle] = useState("Unknown");
+    const [pageNumber, setPageNumber] = useState(0);
+
     // Drag refs
     const isDraggingLeft = useRef(false);
     const isDraggingRight = useRef(false);
@@ -56,7 +61,28 @@ export default function HomePage() {
 
     const containerRef = useRef(null);
 
-    // ── Drag: Index panel (left handle) ────────────────
+    // ── Fetch current book info from indexs collection ─
+    const fetchCurrentBookInfo = useCallback(async () => {
+        try {
+            if (!DATABASE_ID || !COLLECTION_ID_indexs) {
+                console.warn("Appwrite config incomplete for indexs");
+                return;
+            }
+            // Fetch all index documents and get the first one (or implement pagination if needed)
+            const response = await databases.listDocuments(
+                DATABASE_ID,
+                COLLECTION_ID_indexs,
+                [{ limit: 1 }]
+            );
+            if (response.documents.length > 0) {
+                const doc = response.documents[0];
+                setBookTitle(doc.title || doc.bookTitle || "Unknown");
+                setPageNumber(doc.page || doc.pageNumber || 0);
+            }
+        } catch (error) {
+            console.warn("Failed to fetch book info from indexs:", error);
+        }
+    }, []);
     const onLeftDragStart = useCallback((e) => {
         isDraggingLeft.current = true;
         dragStartX.current = e.clientX;
@@ -103,6 +129,11 @@ export default function HomePage() {
         };
     }, []);
 
+    // ── Fetch book info on mount ─────────────────────────
+    useEffect(() => {
+        fetchCurrentBookInfo();
+    }, [fetchCurrentBookInfo]);
+
     return (
         <div className="h-screen flex flex-col overflow-hidden bg-light-bg dark:bg-dark-bg">
             {/* Navbar */}
@@ -140,14 +171,24 @@ export default function HomePage() {
                 />
 
                 {/* Chat panel */}
-                <ChatPanel style={{ width: chatWidth, minWidth: chatWidth }} />
+                <ChatPanel 
+                    style={{ width: chatWidth, minWidth: chatWidth }}
+                    bookTitle={bookTitle}
+                    pageNumber={pageNumber}
+                />
             </div>
 
             {/* ── Mobile — Single panel view ───────────────── */}
             <div className="sm:hidden flex-1 overflow-hidden">
                 {mobileTab === "index" && <IndexPanel style={{ width: "100%", height: "100%" }} />}
                 {mobileTab === "book" && <BookPanel style={{ width: "100%", height: "100%" }} />}
-                {mobileTab === "chat" && <ChatPanel style={{ width: "100%", height: "100%" }} />}
+                {mobileTab === "chat" && (
+                    <ChatPanel 
+                        style={{ width: "100%", height: "100%" }}
+                        bookTitle={bookTitle}
+                        pageNumber={pageNumber}
+                    />
+                )}
             </div>
 
             {/* ── Footer — hidden on mobile ────────────────── */}
